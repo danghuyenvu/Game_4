@@ -1,15 +1,23 @@
 class Player:
     def __init__(self):
-        self.gems = {
-            "Diamond": 0,
-            "Emerald": 0,
+        self.temp = {
+            "white": 0,
+            "green": 0,
             "Gold": 0,
-            "Ruby": 0,
-            "Onyx": 0,
-            "Sapphire": 0
+            "red": 0,
+            "black": 0,
+            "blue": 0
         }
 
         self.cards = []
+
+        self.perm = {
+            "white": 0,
+            "green": 0,
+            "red": 0,
+            "black": 0,
+            "blue": 0
+        }
 
     def get_gems(self, name = None):
         if name is None:
@@ -26,6 +34,7 @@ class Player:
         self.cards.append(card)
         return True
     
-    def get_cards()
+    def get_cards():
+        pass
 
         

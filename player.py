@@ -42,6 +42,7 @@ class Player:
         self.cards.append(card)
         self.point += card.points
         self.perm[card.color] = self.perm[card.color] + 1
+        
         for idx in range(len(self.deposit_card)):
             if card.is_same_card(self.deposit_card[idx]):
                 self.deposit_card.pop(idx)

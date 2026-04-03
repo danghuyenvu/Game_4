@@ -1,8 +1,4 @@
-import pygame
-from __future__ import annotations
-import random
-from pygame.locals import *
-from functools import reduce
+from settings import *
 
 class Card:
     def __init__(self, level, resources: list, color=None, points=0, path_dir=None):
@@ -10,7 +6,10 @@ class Card:
         self.color = color 
         self.resources = resources
         self.points = points
-        self.dir = f"asset/level{level}/{path_dir}" if path_dir else None
+        if level is not None:
+            self.dir = f"asset/level{level}/{path_dir}" if path_dir else None
+        else:
+            self.dir = f"asset/{path_dir}" if path_dir else None
         self.image = None
         self.is_draw = False
 
@@ -46,7 +45,7 @@ class NobleDeck:
         return card
 
 class CardDeck:
-    def __init__(self, cards, level):
+    def __init__(self, cards: list, level: int):
         self.level = level
         self.cards = cards
 
@@ -59,3 +58,71 @@ class CardDeck:
         
     def can_draw(self):
         return bool(self.cards)
+    
+def process_card_data():
+    cards_by_level = {}
+    nobles = []
+    cards = []
+    try:
+        with open('asset/level_card.csv', mode='r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            # Dictionary chứa kết quả: {1: [], 2: [], 3: []}
+
+            for row in reader:
+                # Lấy thông tin cơ bản
+                level = int(row['Level'])
+                color = row['Color']
+                points = int(row['PV'])
+                path = row['Path']
+                
+                # Gom các tài nguyên thành một list theo thứ tự: Black, Blue, Green, Red, White
+                resources = [
+                    int(row['Black']),
+                    int(row['Blue']),
+                    int(row['Green']),
+                    int(row['Red']),
+                    int(row['White'])
+                ]
+                # Tạo instance của Card
+                card = Card(
+                    level=level,
+                    resources=resources,
+                    color=color,
+                    points=points,
+                    path_dir=path
+                )
+                
+                # Phân loại vào level tương ứng
+                if level not in cards_by_level:
+                    cards_by_level[level] = []
+                cards.append[card]
+                cards_by_level[level].append(card)
+    except FileNotFoundError:
+        print(f"Lỗi: Không tìm thấy level_card.csv")
+    except KeyError as e:
+        print(f"Lỗi: File card thiếu cột {e}")
+    except Exception as e:
+        print(f"Lỗi không xác định khi đọc Card: {e}")
+    
+    try:
+        with open("asset/noble.csv", mode='r', encoding='utf-8') as f:
+            reader = csv.DictReader(f)
+            for row in reader:
+                # Noble mặc định 3 điểm, level 3
+                res = [
+                    int(row['Black']),
+                    int(row['Blue']), 
+                    int(row['Green']), 
+                    int(row['Red']), 
+                    int(row['White'])]
+                
+                noble = Noble(level = None, color = None, resources = res, points = 3, path_dir = row['Path'])
+                nobles.append(noble)
+    except FileNotFoundError:
+        print(f"Lỗi: Không tìm thấy file noble asset/noble.csv")
+    except KeyError as e:
+        print(f"Lỗi: File noble thiếu cột {e}")
+    except Exception as e:
+        print(f"Lỗi không xác định khi đọc Noble: {e}")
+    
+    return cards_by_level, cards, nobles

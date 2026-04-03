@@ -11,15 +11,16 @@ class Card:
         else:
             self.dir = f"asset/{path_dir}" if path_dir else None
         self.image = None
-        self.is_draw = False
+        self.is_draw = True
 
     def load(self):
         if self.image is None and self.dir:
-            self.image = pygame.image.load(self.dir).convert_alpha()
+            image = pygame.image.load(self.dir).convert_alpha()
+            self.image = pygame.transform.smoothscale(image, (CARD_W, CARD_H))
 
     def draw(self, screen, position):
         if self.is_draw and self.image:
-            rect = self.image.get_rect(center=position)
+            rect = self.image.get_rect(topleft = position)
             screen.blit(self.image, rect)
 
 
@@ -31,6 +32,15 @@ class Card:
 class Noble(Card):
     def __init__(self, level, color, resources, points=0, path_dir=None):
         super().__init__(level, resources, color, points, path_dir)
+    
+    def load(self):
+        if self.image is None and self.dir:
+            try:
+                image = pygame.image.load(self.dir).convert_alpha()
+                self.image = pygame.transform.smoothscale(image, (CARD_W, CARD_W))
+                print(f"Loaded noble image: {self.dir}, id {id(self)}")
+            except Exception as e:
+                print(f"Error loading noble image {self.dir}: {e}")
 
 
 class NobleDeck:
@@ -49,7 +59,7 @@ class CardDeck:
         self.level = level
         self.cards = cards
 
-    def draw(self):
+    def draw(self) -> Card:
         if not self.can_draw():
             return None
         card = random.choice(self.cards)

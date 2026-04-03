@@ -57,6 +57,9 @@ class Game():
         self.action_box_rect = None
         self.noble_area_rect = None
 
+        self.current_action = None   # "TAKE 3", "TAKE 2", "RESERVE", "BUY"
+        self.selected_gems = []      # indices for TAKE 3
+        self.selected_gem = None     # index for TAKE 2
     # Setting up game (can be used to restart new game)
     def init_game(self, num_player = 2):
         if not hasattr(self, 'font'):
@@ -223,6 +226,9 @@ class Game():
                         
                         if card.image:
                             card.draw(self.screen, rect.topleft)
+                        
+                        if self.choosing_card and card.is_same_card(self.choosing_card):
+                            pygame.draw.rect(self.screen, (255, 255, 0), rect, 4)
 
         # 4. Draw BANK GEMS (Sử dụng self.gems_rect)
         for i, gem_img in enumerate(self.gems):
@@ -237,6 +243,9 @@ class Game():
                 # Căn số lượng vào góc dưới bên phải của rect
                 txt_rect = count_txt.get_rect(bottomright=(rect.right - 5, rect.bottom - 5))
                 self.screen.blit(count_txt, txt_rect)
+
+            if i in self.selected_gems or i == self.selected_gem:
+                pygame.draw.rect(self.screen, (255, 255, 0), rect, 3)
 
         # 5. Draw ACTION BOX & PLAYER RESOURCES (Sử dụng self.cost_rects)
         action_rect = pygame.Rect(0, main_height - ACTION_ZONE_H, main_width, ACTION_ZONE_H)
@@ -268,12 +277,31 @@ class Game():
         for i, label in enumerate(actions_labels):
             rect = self.action_button_rects[i]
             # Vẽ nút
-            pygame.draw.rect(self.screen, (60, 60, 60), rect)
+            if self.current_action == label:
+                color = (0, 150, 200)
+            else:
+                color = (60, 60, 60)
+
+            pygame.draw.rect(self.screen, color, rect)
             pygame.draw.rect(self.screen, (255, 255, 255), rect, 2)
             
             # Vẽ text
             txt_surf = self.font.render(label, True, (255, 255, 255))
             self.screen.blit(txt_surf, txt_surf.get_rect(center=rect.center))
+
+        # Draw CONFIRM BUTTON
+        if self.current_action:
+            confirm_rect = pygame.Rect(self.bank_rect.right - 100, self.bank_rect.bottom , 120, 50)
+            self.confirm_rect = confirm_rect
+
+            valid = self.can_confirm()
+            color = (0, 200, 0) if valid else (80, 80, 80)
+
+            pygame.draw.rect(self.screen, color, confirm_rect)
+            pygame.draw.rect(self.screen, (255,255,255), confirm_rect, 2)
+
+            txt = self.font.render("CONFIRM", True, (255,255,255))
+            self.screen.blit(txt, txt.get_rect(center=confirm_rect.center))
 
         # 7. Draw SIDE BAR
         side_width = WINDOW_RESOLUTION[0] - main_width
@@ -288,6 +316,13 @@ class Game():
         pygame.display.flip()
 
     def update(self):
+        self.card_rects = [[], [], []]
+        for level in [1, 2, 3]:
+            row_y = 150 + (3 - level) * (CARD_H + GAP)
+            for i, card in enumerate(self.board[level]):
+                card_x = START_X + (i + 1) * (CARD_W + GAP)
+                rect = pygame.Rect(card_x, row_y, CARD_W, CARD_H)
+                self.card_rects[level-1].append(rect)
         if self.menu.in_menu:
             self.menu.update()
             return
@@ -309,51 +344,174 @@ class Game():
                 if event.key == pygame.K_ESCAPE:
                     self.menu.in_menu = True
                     continue
-            
+
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
+                player = self.players[self.current_player]
 
-                # Kiểm tra vùng Board
+                # ===== CLICK ACTION BUTTON =====
+                for i, rect in enumerate(self.action_button_rects):
+                    if rect.collidepoint(pos):
+                        actions = ["TAKE 3", "TAKE 2", "RESERVE", "BUY"]
+                        action = actions[i]
+
+                        # toggle behavior
+                        if self.current_action == action:
+                            self.current_action = None
+                        else:
+                            self.current_action = action
+
+                        # reset selections
+                        self.selected_gems = []
+                        self.selected_gem = None
+                        self.choosing_card = None
+                        return
+                    
+                # ===== CLICK CARD =====        
                 if self.board_rect.collidepoint(pos):
                     for level_idx in range(3):
                         for i, rect in enumerate(self.card_rects[level_idx]):
                             if rect.collidepoint(pos):
-                                # Logic: Chọn bài
                                 if i < len(self.board[level_idx + 1]):
-                                    self.choosing_card = self.board[level_idx + 1][i]
-                                    print(f"Card selected: {self.choosing_card.color}")
-                                return # Thoát sớm sau khi tìm thấy
+                                    card = self.board[level_idx + 1][i]
 
-                # Kiểm tra vùng Action Box
-                elif self.action_box_rect.collidepoint(pos):
-                    # Check nút bấm trước
-                    for i, rect in enumerate(self.action_button_rects):
-                        if rect.collidepoint(pos):
-                            print(f"Action button {i} clicked")
-                            return
-                    
-                    # Check gems của player
-                    for i, rect in enumerate(self.cost_rects):
-                        if rect.collidepoint(pos):
-                            print(f"Player gem {GEMS_INDEX[i]} clicked")
-                            return
-
-                # Kiểm tra vùng Bank
-                elif self.bank_rect.collidepoint(pos):
+                                    if self.current_action in ["BUY", "RESERVE"]:
+                                        if self.choosing_card and card.is_same_card(self.choosing_card):
+                                            self.choosing_card = None
+                                        else:
+                                            self.choosing_card = card
+                                return
+                            
+                # ===== CLICK BANK =====
+                if self.bank_rect.collidepoint(pos):
                     for i, rect in enumerate(self.gems_rect):
                         if rect.collidepoint(pos):
-                            print(f"Bank gem {GEMS_INDEX[i]} clicked")
-                            return
 
-                # Kiểm tra vùng Noble
-                elif self.noble_area_rect.collidepoint(pos):
-                    for i, rect in enumerate(self.noble_rects):
-                        if rect.collidepoint(pos):
-                            print(f"Noble {i} clicked")
+                            # TAKE 3 (select up to 3 different)
+                            if self.current_action == "TAKE 3":
+                                if i == 5:
+                                    return  # ignore gold
+                                if i in self.selected_gems:
+                                    self.selected_gems.remove(i)
+                                elif len(self.selected_gems) < 3:
+                                    self.selected_gems.append(i)
+
+                            # TAKE 2 (only 1 type)
+                            elif self.current_action == "TAKE 2":
+                                if self.selected_gem == i:
+                                    self.selected_gem = None
+                                else:
+                                    self.selected_gem = i
+
                             return
+                        
+                # ===== CONFIRM =====
+                if self.current_action and hasattr(self, "confirm_rect") and self.confirm_rect.collidepoint(pos):
+                    if self.can_confirm():
+                        self.execute_action()
 
     def next_turn(self):
         self.current_player = (self.current_player + 1) % len(self.players)
         self.choosing_card = None
         self.choosing_cost = [0,0,0,0,0,0]
         self.choosing_gems = [0,0,0,0,0]
+
+    def can_confirm(self):
+        player = self.players[self.current_player]
+        total = sum(player.temp.values())
+
+        # BUY
+        if self.current_action == "BUY":
+            if not self.choosing_card:
+                return False
+
+            cost = card_cost_to_dict(self.choosing_card)
+            for color, amount in cost.items():
+                if player.temp[color] + player.perm.get(color, 0) < amount:
+                    return False
+            return True
+
+        # RESERVE
+        if self.current_action == "RESERVE":
+            return self.choosing_card is not None and len(player.deposit_card) < 3
+
+        # TAKE 3
+        if self.current_action == "TAKE 3":
+            if total + len(self.selected_gems) > 10:
+                return False
+            return self.bank.can_take_3(self.selected_gems)
+
+        # TAKE 2
+        if self.current_action == "TAKE 2":
+            if total + 2 > 10:
+                return False
+            return self.selected_gem is not None and self.bank.can_take_2(self.selected_gem)
+
+        return False
+    
+    def remove_card_from_board(self, target):
+        for level in [1,2,3]:
+            for i, card in enumerate(self.board[level]):
+                if card.is_same_card(target):
+                    self.board[level].pop(i)
+                    return
+                
+    def execute_action(self):
+        player = self.players[self.current_player]
+
+        # ===== BUY =====
+        if self.current_action == "BUY":
+            cost = card_cost_to_dict(self.choosing_card)
+
+            if player.purchase(cost, self.choosing_card):
+                # ADD PERMANENT BONUS
+                color_map = {
+                    "Black": "black",
+                    "Blue": "blue",
+                    "Green": "green",
+                    "Red": "red",
+                    "White": "white"
+                }
+
+                bonus_color = color_map.get(self.choosing_card.color)
+                if bonus_color:
+                    player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
+
+                self.remove_card_from_board(self.choosing_card)
+
+        # ===== RESERVE =====
+        elif self.current_action == "RESERVE":
+            if len(player.deposit_card) < 3:
+                player.deposit(self.choosing_card)
+                self.remove_card_from_board(self.choosing_card)
+
+                # take gold if available
+                if self.bank.can_book():
+                    self.bank.gem[5] -= 1
+                    player.temp["gold"] += 1
+
+        # ===== TAKE 3 =====
+        elif self.current_action == "TAKE 3":
+            if self.bank.get_3(self.selected_gems):
+                keys = ["black","blue","green","red","white"]
+                for i in self.selected_gems:
+                    player.temp[keys[i]] += 1
+
+        # ===== TAKE 2 =====
+        elif self.current_action == "TAKE 2":
+            if self.bank.get_2(self.selected_gem):
+                keys = ["black","blue","green","red","white"]
+                player.temp[keys[self.selected_gem]] += 2
+
+        # ===== END TURN =====
+        self.next_turn()
+
+        # reset everything
+        self.current_action = None
+        self.selected_gems = []
+        self.selected_gem = None
+        self.choosing_card = None
+
+def card_cost_to_dict(card):
+    keys = ["black", "blue", "green", "red", "white"]
+    return {keys[i]: card.resources[i] for i in range(5)}

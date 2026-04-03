@@ -10,9 +10,9 @@ class Bank:
             self.gem = [7,7,7,7,7,5]
 
     def can_take_3(self, indices):
-        if len(indices) != 3:
+        if len(indices) == 0 or len(indices) > 3:
             return False
-        if len(set(indices)) != 3:
+        if len(set(indices)) != len(indices):  # must be unique
             return False
         if 5 in indices:  # no gold
             return False

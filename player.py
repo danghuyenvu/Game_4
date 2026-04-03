@@ -41,7 +41,6 @@ class Player:
 
         self.cards.append(card)
         self.point += card.points
-        self.perm[card.color] = self.perm[card.color] + 1
 
         for idx in range(len(self.deposit_card)):
             if card.is_same_card(self.deposit_card[idx]):
@@ -51,11 +50,11 @@ class Player:
     
     def deposit(self, card : Card):
         self.temp["gold"] = self.temp["gold"] + 1
-        self.deposit_card.append[card]
+        self.deposit_card.append(card)
 
     def add_noble(self, card: Card):
         self.point += 3
-        self.nobles.append(card)
+        self.noble.append(card)
     
     def get_noble(self):
         return self.noble

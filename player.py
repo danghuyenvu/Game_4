@@ -50,3 +50,4 @@ class Player:
             return self.deposit_card[num]
         else:
             return self.deposit_card
+    

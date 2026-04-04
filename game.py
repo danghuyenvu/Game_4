@@ -169,9 +169,6 @@ class Game():
             btn_rect = pygame.Rect(bx, by, ACTION_BTN_W, 60)
             self.action_button_rects.append(btn_rect)
 
-
-
-
     def play(self):
         while self.running:
             self.handle_input()
@@ -523,8 +520,8 @@ class Game():
                 player.deposit(self.choosing_card)
                 self.remove_card_from_board(self.choosing_card)
 
-                # take gold if available
-                if self.bank.can_book():
+                # take gold if available and temp < 10
+                if sum(player.temp.values()) + 1 <= 10 and self.bank.can_book():
                     self.bank.gem[5] -= 1
                     player.temp["gold"] += 1
 

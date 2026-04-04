@@ -3,8 +3,8 @@ from bank import *
 import random
 from copy import deepcopy
 
-class Monte_carlo(Player):
-    def __init__(self, num_simulations=100):
+class Monte_carlo(RandomBot):
+    def __init__(self, num_simulations=50):
         super().__init__()
         self.players = None
         self.bank = None
@@ -23,7 +23,7 @@ class Monte_carlo(Player):
         new_bot.total_temp = self.total_temp
         return new_bot
 
-    def get_action(self, cards: list, bank: Bank, players=[], shown_nobles=None):
+    def get_action(self, cards: list, bank: Bank, players = [], shown_nobles = None):
         """
         Main decision function that uses Monte Carlo simulation.
         Returns a tuple: (action_type, action_data)
@@ -53,7 +53,26 @@ class Monte_carlo(Player):
                 best_score = score
                 best_action = action
 
-        return best_action
+        return self.resolve(best_action)
+    
+    def resolve(self, best_action):
+        if best_action[0] == "BUY":
+            self.current_action = "BUY"
+            self.choosing_card = best_action[1]
+            return self.current_action
+        elif best_action[0] == "RESERVE":
+            self.current_action = "RESERVE"
+            self.choosing_card = best_action[1]
+            return self.current_action
+        elif best_action[0] == "TAKE_GEMS":
+            self.current_action = "TAKE 3"
+            self.selected_gems = best_action[1]
+            return self.current_action
+        elif best_action[0] == "TAKE_SAME":
+            self.current_action = "TAKE 2"
+            self.selected_gems = best_action[1]
+            return self.current_action
+        return None
 
     def _get_available_actions(self, cards: list, bank: Bank):
         """Generate all valid actions from current state"""
@@ -139,8 +158,17 @@ class Monte_carlo(Player):
             sim_nobles = shown_nobles.copy()  # Nobles don't change in simulation
             sim_cards = cards  # Cards don't change in simulation
             
-            # Find current player in simulation
-            current_idx = players.index(self)
+            # Find current player in simulation - search by identity or type
+            current_idx = None
+            for i, p in enumerate(players):
+                if p is self or isinstance(p, Monte_carlo):
+                    current_idx = i
+                    break
+            
+            if current_idx is None:
+                # Fallback: assume first player is the Monte Carlo bot
+                current_idx = 0
+            
             sim_current_player = sim_players[current_idx]
             
             # Execute the action

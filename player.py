@@ -24,6 +24,10 @@ class Player:
         self.point = 0
         self.action = None
         self.total_temp = 0 
+        self.current_action = None
+        self.choosing_card = None
+        self.selected_gems = None
+
 
     def get_gems(self, name = None):
         if name is None:

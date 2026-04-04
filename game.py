@@ -60,8 +60,9 @@ class Game():
         self.current_action = None   # "TAKE 3", "TAKE 2", "RESERVE", "BUY"
         self.selected_gems = []      # indices for TAKE 3
         self.selected_gem = None     # index for TAKE 2
+
     # Setting up game (can be used to restart new game)
-    def init_game(self, num_player = 2):
+    def init_game(self, num_player = 2, bot=None):
         if not hasattr(self, 'font'):
             self.font = pygame.font.SysFont("Arial", 16, bold=True)
         cards_by_level, self.cards, self.nobles = process_card_data()
@@ -75,6 +76,8 @@ class Game():
         }
         self.num_player = num_player
         self.players = [Player() for _ in range(num_player)]
+        if bot is not None:
+            self.players[-1] = bot
         self.bank = Bank(self.gems, None, num_player)
         # load sprites trước khi draw
         for card in self.cards:
@@ -175,6 +178,7 @@ class Game():
     def play(self):
         while self.running:
             self.handle_input()
+            self.handle_bot()
             self.draw()
             self.update()
             self.clock.tick(FPS)
@@ -372,6 +376,14 @@ class Game():
                 if card:
                     self.board[level].append(card)
 
+    def handle_bot(self):
+        player = self.players[self.current_player]
+        if isinstance(player, RandomBot):
+            self.current_action = player.get_action(self.cards, self.bank)
+            print(f"BOT MOVE: {self.current_action}")
+            self.execute_action()
+
+
     def handle_input(self):
         for event in pygame.event.get():
             if self.menu.in_menu:
@@ -385,10 +397,11 @@ class Game():
                     self.menu.in_menu = True
                     continue
 
+            player = self.players[self.current_player]
+            if isinstance(player, RandomBot):
+                return
             if event.type == pygame.MOUSEBUTTONDOWN:
                 pos = event.pos
-                player = self.players[self.current_player]
-
                 # ===== CLICK ACTION BUTTON =====
                 for i, rect in enumerate(self.action_button_rects):
                     if rect.collidepoint(pos):
@@ -498,50 +511,93 @@ class Game():
                 
     def execute_action(self):
         player = self.players[self.current_player]
+        if not isinstance(player, RandomBot):
+            # ===== BUY =====
+            if self.current_action == "BUY":
+                cost = card_cost_to_dict(self.choosing_card)
 
-        # ===== BUY =====
-        if self.current_action == "BUY":
-            cost = card_cost_to_dict(self.choosing_card)
+                if player.purchase(cost, self.choosing_card):
+                    # ADD PERMANENT BONUS
+                    color_map = {
+                        "Black": "black",
+                        "Blue": "blue",
+                        "Green": "green",
+                        "Red": "red",
+                        "White": "white"
+                    }
 
-            if player.purchase(cost, self.choosing_card):
-                # ADD PERMANENT BONUS
-                color_map = {
-                    "Black": "black",
-                    "Blue": "blue",
-                    "Green": "green",
-                    "Red": "red",
-                    "White": "white"
-                }
+                    bonus_color = color_map.get(self.choosing_card.color)
+                    if bonus_color:
+                        player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
 
-                bonus_color = color_map.get(self.choosing_card.color)
-                if bonus_color:
-                    player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
+                    self.remove_card_from_board(self.choosing_card)
 
-                self.remove_card_from_board(self.choosing_card)
+            # ===== RESERVE =====
+            elif self.current_action == "RESERVE":
+                if len(player.deposit_card) < 3:
+                    player.deposit(self.choosing_card)
+                    self.remove_card_from_board(self.choosing_card)
 
-        # ===== RESERVE =====
-        elif self.current_action == "RESERVE":
-            if len(player.deposit_card) < 3:
-                player.deposit(self.choosing_card)
-                self.remove_card_from_board(self.choosing_card)
+                    # take gold if available
+                    if self.bank.can_book():
+                        self.bank.gem[5] -= 1
+                        player.temp["gold"] += 1
 
-                # take gold if available
-                if self.bank.can_book():
-                    self.bank.gem[5] -= 1
-                    player.temp["gold"] += 1
+            # ===== TAKE 3 =====
+            elif self.current_action == "TAKE 3":
+                if self.bank.get_3(self.selected_gems):
+                    keys = ["black","blue","green","red","white"]
+                    for i in self.selected_gems:
+                        player.temp[keys[i]] += 1
 
-        # ===== TAKE 3 =====
-        elif self.current_action == "TAKE 3":
-            if self.bank.get_3(self.selected_gems):
-                keys = ["black","blue","green","red","white"]
-                for i in self.selected_gems:
-                    player.temp[keys[i]] += 1
+            # ===== TAKE 2 =====
+            elif self.current_action == "TAKE 2":
+                if self.bank.get_2(self.selected_gem):
+                    keys = ["black","blue","green","red","white"]
+                    player.temp[keys[self.selected_gem]] += 2
+        else:
+            if self.current_action == "BUY":
+                cost = card_cost_to_dict(player.choosing_card)
 
-        # ===== TAKE 2 =====
-        elif self.current_action == "TAKE 2":
-            if self.bank.get_2(self.selected_gem):
-                keys = ["black","blue","green","red","white"]
-                player.temp[keys[self.selected_gem]] += 2
+                if player.purchase(cost, player.choosing_card):
+                    # ADD PERMANENT BONUS
+                    color_map = {
+                        "Black": "black",
+                        "Blue": "blue",
+                        "Green": "green",
+                        "Red": "red",
+                        "White": "white"
+                    }
+
+                    bonus_color = color_map.get(player.choosing_card.color)
+                    if bonus_color:
+                        player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
+
+                    self.remove_card_from_board(player.choosing_card)
+
+            # ===== RESERVE =====
+            elif self.current_action == "RESERVE":
+                if len(player.deposit_card) < 3:
+                    player.deposit(player.choosing_card)
+                    self.remove_card_from_board(player.choosing_card)
+
+                    # take gold if available
+                    if self.bank.can_book():
+                        self.bank.gem[5] -= 1
+                        player.temp["gold"] += 1
+
+            # ===== TAKE 3 =====
+            elif self.current_action == "TAKE 3":
+                if self.bank.get_3(player.selected_gems):
+                    keys = ["black","blue","green","red","white"]
+                    for i in player.selected_gems:
+                        player.temp[keys[i]] += 1
+
+            # ===== TAKE 2 =====
+            elif self.current_action == "TAKE 2":
+                if self.bank.get_2(player.selected_gem):
+                    keys = ["black","blue","green","red","white"]
+                    player.temp[keys[player.selected_gem]] += 2
 
         # ===== END TURN =====
         self.next_turn()
@@ -551,7 +607,3 @@ class Game():
         self.selected_gems = []
         self.selected_gem = None
         self.choosing_card = None
-
-def card_cost_to_dict(card):
-    keys = ["black", "blue", "green", "red", "white"]
-    return {keys[i]: card.resources[i] for i in range(5)}

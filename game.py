@@ -7,6 +7,7 @@ from Deck import *
 from bank import *
 from Menu import *
 from player import *
+from monte_carlo import *
 import time
 
 class Game():
@@ -373,7 +374,11 @@ class Game():
 
     def handle_bot(self):
         player = self.players[self.current_player]
-        if isinstance(player, RandomBot):
+        if isinstance(player, Monte_carlo):
+            self.current_action = player.get_action(self.cards, self.bank, self.players, self.shown_nobles)
+            print(f"BOT MOVE: {self.current_action}")
+            self.execute_action()
+        elif isinstance(player, RandomBot):
             self.current_action = player.get_action(self.cards, self.bank)
             print(f"BOT MOVE: {self.current_action}")
             self.execute_action()
@@ -528,6 +533,7 @@ class Game():
                         player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
 
                     self.remove_card_from_board(self.choosing_card)
+                    self.bank.pay(self.choosing_card.resources + [0])
 
             # ===== RESERVE =====
             elif self.current_action == "RESERVE":
@@ -573,7 +579,7 @@ class Game():
                         player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
 
                     self.remove_card_from_board(player.choosing_card)
-
+                    self.bank.pay(player.choosing_card.resources + [0])
             # ===== RESERVE =====
             elif self.current_action == "RESERVE":
                 if len(player.deposit_card) < 3:

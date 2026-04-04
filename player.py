@@ -23,6 +23,11 @@ class Player:
         self.noble = []
         self.point = 0
         self.action = None
+        self.total_temp = 0 
+        self.current_action = None
+        self.choosing_card = None
+        self.selected_gems = None
+
 
     def get_gems(self, name = None):
         if name is None:
@@ -92,12 +97,27 @@ class Player:
     def add_gems(self, gems):
         for x in gems:
             self.temp[x] = self.temp.get(x, 0) + 1
+            self.total_temp += 1
 
     def get_deposit_card(self, num = None):
         if num is not None and num < len(self.deposit_card):
             return self.deposit_card[num]
         else:
             return self.deposit_card
+    
+    def copy(self):
+        """Create a copy of this player for simulation"""
+        new_player = Player()
+        new_player.temp = self.temp.copy()
+        new_player.cards = self.cards.copy()
+        new_player.perm = self.perm.copy()
+        new_player.deposit_card = self.deposit_card.copy()
+        new_player.noble = self.noble.copy()
+        new_player.point = self.point
+        new_player.action = self.action
+        new_player.total_temp = self.total_temp
+        return new_player
+    
     
 class RandomBot(Player):
     def __init__(self):

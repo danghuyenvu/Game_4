@@ -64,6 +64,7 @@ class Game():
         self.current_action = None   # "TAKE 3", "TAKE 2", "RESERVE", "BUY"
         self.selected_gems = []      # indices for TAKE 3
         self.selected_gem = None     # index for TAKE 2
+        self.noble_chosen_this_frame = False  # Prevent re-checking nobles after choosing one
 
     # Setting up game (can be used to restart new game)
     def init_game(self, num_player = 2, bot=None):
@@ -375,6 +376,28 @@ class Game():
                     perm_rect = perm_txt.get_rect(midleft=(temp_rect.right + 10, temp_rect.centery))
                     self.screen.blit(perm_txt, perm_rect)
 
+            # Draw reserved cards for opponent (scaled smaller)
+            if p_other.deposit_card:
+                # Calculate card size - make them smaller to fit
+                small_card_w = int(CARD_W * 0.4)  # 40% of normal size
+                small_card_h = int(CARD_H * 0.4)
+                card_gap = 5
+                
+                # Position cards starting from below the gem info (moved lower to avoid overlap)
+                start_x = s_rect.x + 10
+                start_y = s_rect.y + 140  # Below the gem display area
+                
+                for card_idx, card in enumerate(p_other.deposit_card):
+                    if card.image:
+                        # Scale down the card image
+                        scaled_card = pygame.transform.smoothscale(card.image, (small_card_w, small_card_h))
+                        card_x = start_x + card_idx * (small_card_w + card_gap)
+                        card_y = start_y
+                        
+                        # Only draw if it fits in the sidebar width
+                        if card_x + small_card_w <= s_rect.right - 10:
+                            self.screen.blit(scaled_card, (card_x, card_y))
+
         # Draw noble overlay if needed
         if self.show_noble_overlay:
             # Dark overlay
@@ -398,6 +421,9 @@ class Game():
         pygame.display.flip()
 
     def update(self):
+        # Reset flags at the start of each frame
+        self.noble_chosen_this_frame = False
+        
         self.card_rects = [[], [], []]
         for level in [1, 2, 3]:
             row_y = 150 + (3 - level) * (CARD_H + GAP)
@@ -421,23 +447,6 @@ class Game():
                 chosen = cur.deposit_card.pop(index)
                 cur.deposit_card.append(chosen)
 
-        # check for noble availability
-        if not self.show_noble_overlay:
-            perm_gems = [item for item in cur.perm.values()]
-            available_nobles = [noble for noble in self.shown_nobles if noble.can_get(perm_gems)]
-            if len(available_nobles) > 1:
-                self.choosing_nobles = available_nobles
-                self.show_noble_overlay = True
-            elif len(available_nobles) == 1:
-                # Automatically take the noble
-                cur.add_noble(available_nobles[0])
-                self.shown_nobles.remove(available_nobles[0])
-                # Draw a new noble if available
-                new_noble = self.nobles.draw()
-                if new_noble:
-                    self.shown_nobles.append(new_noble)
-
-
     def handle_bot(self):
         player = self.players[self.current_player]
         if isinstance(player, Monte_carlo):
@@ -445,7 +454,7 @@ class Game():
             print(f"BOT MOVE: {self.current_action}")
             self.execute_action()
         elif isinstance(player, RandomBot):
-            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank)
+            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank, self.shown_nobles)
             print(f"BOT MOVE: {self.current_action}")
             self.execute_action()
 
@@ -487,6 +496,14 @@ class Game():
                                 self.shown_nobles.append(new_noble)
                             self.choosing_nobles = []
                             self.show_noble_overlay = False
+                            self.noble_chosen_this_frame = True  # Prevent re-checking nobles this frame
+                            # End the turn after choosing a noble
+                            self.next_turn()
+                            # reset everything
+                            self.current_action = None
+                            self.selected_gems = []
+                            self.selected_gem = None
+                            self.choosing_card = None
                             return
                 
                 # ===== CLICK ACTION BUTTON =====
@@ -680,8 +697,6 @@ class Game():
                         player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
 
                     self.remove_card_from_board(player.choosing_card)
-                if isinstance(player, Monte_carlo):
-                    player._acquire_available_nobles(player, self.shown_nobles)
             # ===== RESERVE =====
             elif self.current_action == "RESERVE":
                 if len(player.deposit_card) < 3:
@@ -706,11 +721,42 @@ class Game():
                     keys = ["black","blue","green","red","white"]
                     player.temp[keys[player.selected_gems]] += 2
 
-        # ===== END TURN =====
-        self.next_turn()
-
         # reset everything
         self.current_action = None
         self.selected_gems = []
         self.selected_gem = None
         self.choosing_card = None
+        # ---- check for and perform noble logic at the end of the turn
+        # Check for noble availability after action completion
+        cur = self.players[self.current_player]
+        perm_gems = [item for item in cur.perm.values()]
+        available_nobles = [noble for noble in self.shown_nobles if noble.can_get(perm_gems)]
+        
+        if isinstance(cur, RandomBot):
+            # RandomBot: automatically choose a random noble if available
+            chosen_noble = cur.check_and_choose_noble(self.shown_nobles)
+            if chosen_noble:
+                cur.add_noble(chosen_noble)
+                self.shown_nobles.remove(chosen_noble)
+                # Draw a new noble if available
+                new_noble = self.nobles.draw()
+                if new_noble:
+                    self.shown_nobles.append(new_noble)
+        else:
+            # Human players: show overlay if multiple nobles available
+            if len(available_nobles) > 1:
+                self.choosing_nobles = available_nobles
+                self.show_noble_overlay = True
+                # Don't end turn yet - wait for noble choice
+                return
+            elif len(available_nobles) == 1:
+                # Automatically take the noble
+                cur.add_noble(available_nobles[0])
+                self.shown_nobles.remove(available_nobles[0])
+                # Draw a new noble if available
+                new_noble = self.nobles.draw()
+                if new_noble:
+                    self.shown_nobles.append(new_noble)
+
+        # ===== END TURN =====
+        self.next_turn()

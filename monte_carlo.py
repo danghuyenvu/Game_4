@@ -494,5 +494,7 @@ class Monte_carlo(RandomBot):
             player.add_noble(noble)
             shown_nobles.remove(noble)
             break
-
+    def check_and_choose_noble(self, shown_nobles):
+       self._acquire_available_nobles(self, shown_nobles)
+        
 

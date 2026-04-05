@@ -1,4 +1,5 @@
 from Deck import *
+import random
 class Player:
     def __init__(self):
         self.temp = {
@@ -130,7 +131,7 @@ class RandomBot(Player):
                 return False
         return True
 
-    def get_action(self, cards, bank, players=None):
+    def get_action(self, cards, bank, nobles, players=None):
         valid_actions = []
 
         # ===== BUY =====
@@ -193,3 +194,15 @@ class RandomBot(Player):
             self.selected_gems = random.choice(take2_colors)
 
         return action
+
+    def check_and_choose_noble(self, shown_nobles):
+        """Check for available nobles and choose one randomly if multiple are available"""
+        perm_gems = [item for item in self.perm.values()]
+        available_nobles = [noble for noble in shown_nobles if noble.can_get(perm_gems)]
+        
+        if len(available_nobles) >= 1:
+            # Choose a random noble from available ones
+            chosen_noble = random.choice(available_nobles)
+            return chosen_noble
+        
+        return None

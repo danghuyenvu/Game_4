@@ -1,6 +1,8 @@
 import pygame
 from concurrent.futures import ThreadPoolExecutor
 import threading
+import pickle
+import os
 
 from pygame.locals import *
 from settings import * 
@@ -29,6 +31,9 @@ class Game():
         self.game_over = False
         self.winner_text = ""
         self.bot = None
+        self.save_dir = "game_saves"
+        if not os.path.exists(self.save_dir):
+            os.makedirs(self.save_dir)
         self.executor = ThreadPoolExecutor(max_workers=workers)
         # game stuffs here
         self.cards = None
@@ -187,6 +192,192 @@ class Game():
             card_pos = (DEPOSIT_POS[0] + DEPOSIT_OFFSET * index, DEPOSIT_POS[1])
             rect = card.image.get_rect(topleft=card_pos)
             self.deposit_rects.append(rect)
+
+    def clear_pygame_surfaces(self, obj, seen=None):
+        """Recursively clear pygame Surface objects from game objects."""
+        if seen is None:
+            seen = set()
+        if obj is None:
+            return
+        obj_id = id(obj)
+        if obj_id in seen:
+            return
+        seen.add(obj_id)
+
+        if isinstance(obj, pygame.Surface):
+            return None
+
+        if isinstance(obj, dict):
+            for key, value in obj.items():
+                if isinstance(value, pygame.Surface):
+                    obj[key] = None
+                else:
+                    self.clear_pygame_surfaces(value, seen)
+            return
+
+        if isinstance(obj, list):
+            for i, item in enumerate(obj):
+                if isinstance(item, pygame.Surface):
+                    obj[i] = None
+                else:
+                    self.clear_pygame_surfaces(item, seen)
+            return
+
+        if isinstance(obj, tuple):
+            for item in obj:
+                self.clear_pygame_surfaces(item, seen)
+            return
+
+        if isinstance(obj, set):
+            for item in list(obj):
+                self.clear_pygame_surfaces(item, seen)
+            return
+
+        if hasattr(obj, '__dict__'):
+            for key, value in obj.__dict__.items():
+                if isinstance(value, pygame.Surface):
+                    obj.__dict__[key] = None
+                else:
+                    self.clear_pygame_surfaces(value, seen)
+            return
+
+        if hasattr(obj, '__iter__') and not isinstance(obj, (str, bytes, bytearray)):
+            try:
+                for item in obj:
+                    self.clear_pygame_surfaces(item, seen)
+            except TypeError:
+                pass
+
+    def reload_sprites(self):
+        """Reload all pygame Surface objects for cards and nobles"""
+        # Reload card sprites
+        for level_num in [1, 2, 3]:
+            level_deck = getattr(self, f'level{level_num}')
+            if level_deck:
+                for card in level_deck.cards:
+                    self.executor.submit(card.load)
+        
+        # Reload board card sprites
+        for level in [1, 2, 3]:
+            if level in self.board:
+                for card in self.board[level]:
+                    self.executor.submit(card.load)
+        
+        # Reload player deposit card sprites
+        for player in self.players:
+            for card in player.deposit_card:
+                self.executor.submit(card.load)
+        
+        # Reload noble sprites
+        if self.nobles:
+            for noble in self.nobles.nobles:
+                self.executor.submit(noble.load)
+        
+        for noble in self.shown_nobles:
+            self.executor.submit(noble.load)
+
+    def get_game_state_dict(self):
+        """Get all game state data for saving"""
+        return {
+            'current_player': self.current_player,
+            'num_player': self.num_player,
+            'players': self.players,
+            'board': self.board,
+            'bank': self.bank,
+            'nobles': self.nobles,
+            'shown_nobles': self.shown_nobles,
+            'level1': self.level1,
+            'level2': self.level2,
+            'level3': self.level3,
+            'choosing_card': self.choosing_card,
+            'choosing_cost': self.choosing_cost,
+            'choosing_gems': self.choosing_gems,
+            'choosing_nobles': self.choosing_nobles,
+            'show_noble_overlay': self.show_noble_overlay,
+            'current_action': self.current_action,
+            'selected_gems': self.selected_gems,
+            'selected_gem': self.selected_gem,
+        }
+
+    def save_initial_state(self):
+        """Save the initial game state for easy reset"""
+        state = self.get_game_state_dict()
+        # Clear all pygame surfaces before pickling
+        for obj in state.values():
+            if isinstance(obj, list):
+                for item in obj:
+                    self.clear_pygame_surfaces(item)
+            else:
+                self.clear_pygame_surfaces(obj)
+        filepath = os.path.join(self.save_dir, 'initial_game.pkl')
+        with open(filepath, 'wb') as f:
+            pickle.dump(state, f)
+        print(f"Initial game state saved to {filepath}")
+        # Reload sprites after saving so game can continue displaying
+        self.reload_sprites()
+        for noble in self.nobles.nobles:
+            while noble.image is None:
+                time.sleep(0.01)
+
+    def save_game_state(self, filename='current_game.pkl'):
+        """Save current game state"""
+        state = self.get_game_state_dict()
+        # Clear all pygame surfaces before pickling
+        for obj in state.values():
+            if isinstance(obj, list):
+                for item in obj:
+                    self.clear_pygame_surfaces(item)
+            else:
+                self.clear_pygame_surfaces(obj)
+        filepath = os.path.join(self.save_dir, filename)
+        with open(filepath, 'wb') as f:
+            pickle.dump(state, f)
+        # Reload sprites after saving so game can continue displaying
+        self.reload_sprites()
+
+    def load_game_state(self, filename='initial_game.pkl'):
+        """Load a saved game state"""
+        filepath = os.path.join(self.save_dir, filename)
+        if not os.path.exists(filepath):
+            print(f"Save file {filepath} not found")
+            return False
+        try:
+            with open(filepath, 'rb') as f:
+                state = pickle.load(f)
+            
+            # Restore game state
+            self.current_player = state['current_player']
+            self.num_player = state['num_player']
+            self.players = state['players']
+            self.board = state['board']
+            self.bank = state['bank']
+            self.nobles = state['nobles']
+            self.shown_nobles = state['shown_nobles']
+            self.level1 = state['level1']
+            self.level2 = state['level2']
+            self.level3 = state['level3']
+            self.choosing_card = state['choosing_card']
+            self.choosing_cost = state['choosing_cost']
+            self.choosing_gems = state['choosing_gems']
+            self.choosing_nobles = state['choosing_nobles']
+            self.show_noble_overlay = state['show_noble_overlay']
+            self.current_action = state['current_action']
+            self.selected_gems = state['selected_gems']
+            self.selected_gem = state['selected_gem']
+            
+            # Reload all pygame sprites that were cleared during save
+            self.reload_sprites()
+            
+            # Wait for sprites to load
+            for noble in self.nobles.nobles:
+                while noble.image is None:
+                    time.sleep(0.01)
+            
+            print(f"Game state loaded from {filepath}")
+            return True
+        except Exception as e:
+            print(f"Error loading game state: {e}")
+            return False
 
     def play(self):
         while self.running:
@@ -503,10 +694,16 @@ class Game():
     def handle_input(self):
         for event in pygame.event.get():
             if self.menu.in_menu:
+                self.menu.has_saved_game = os.path.exists(os.path.join(self.save_dir, 'current_game.pkl'))
                 if self.menu.handle_input(event):
+                    if self.menu.selected_option == "Continue":
+                        if os.path.exists(os.path.join(self.save_dir, 'current_game.pkl')):
+                            self.load_game_state('current_game.pkl')
+                        self.menu.selected_option = None
                     self.start = True
                 continue
             if event.type == pygame.QUIT:
+                self.save_game_state('current_game.pkl')
                 self.running = False
             if self.game_over:
                 if event.type == pygame.KEYDOWN:
@@ -641,6 +838,10 @@ class Game():
             winners = [f"Player {i+1}" for i, p in enumerate(self.players) if p.point == max_points]
             self.winner_text = f"Game Over! Winner(s): {', '.join(winners)}\n\nPress ENTER for new game\nPress ESC to quit"
             self.game_over = True
+            current_path = os.path.join(self.save_dir, 'current_game.pkl')
+            if os.path.exists(current_path):
+                os.remove(current_path)
+
 
     def restart_game(self):
         self.game_over = False
@@ -656,7 +857,7 @@ class Game():
         self.show_noble_overlay = False
         self.choosing_nobles = []
         self.noble_chosen_this_frame = False
-        self.init_game(self.num_player, self.bot)
+        self.load_game_state('initial_game.pkl')
 
     def can_confirm(self):
         player = self.players[self.current_player]

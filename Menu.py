@@ -33,11 +33,17 @@ class Menu:
         spacing = 70
 
         # init menu buttons
+        self.continue_button = MenuButton("Continue", (center_x, center_y-spacing), button_size)
+        self.start_button = MenuButton("Start Game (PvE)", (center_x, center_y), button_size)
+        self.settings_button = MenuButton("Settings", (center_x, center_y+spacing), button_size)
+        self.quit_button = MenuButton("Quit", (center_x, center_y+2*spacing), button_size)
         self.init_buttons = [
-            MenuButton("Start Game (PvE)", (center_x, center_y), button_size),
-            MenuButton("Settings", (center_x, center_y+spacing), button_size),
-            MenuButton("Quit", (center_x, center_y+2*spacing), button_size),
+            self.start_button,
+            self.settings_button,
+            self.quit_button,
         ]
+        self.has_saved_game = False
+        self.selected_option = None
 
         # pause menu buttons
         cx, cy = WINDOW_RESOLUTION[0]*GAME_SCALE//2, WINDOW_RESOLUTION[1]*GAME_SCALE//2
@@ -71,7 +77,7 @@ class Menu:
             self.buttons = self.settings_buttons
         elif self.state == 0:
             self.image = self.bg
-            self.buttons = self.init_buttons
+            self.buttons = [self.continue_button] + self.init_buttons if self.has_saved_game else self.init_buttons
         else:
             self.image = self.overlay
             self.buttons = self.pause_buttons
@@ -105,12 +111,14 @@ class Menu:
         for b in self.buttons:
             if b.handle(event):
                 print(f"{b.name} clicked")
+                self.selected_option = b.name
                 match b.name:
                     case "Quit":
                         pygame.quit()
                         sys.exit()
                     case "Settings":
                         self.settings = True
+                        self.selected_option = None
                         return False
                     case _:
                         self.in_menu = False

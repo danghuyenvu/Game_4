@@ -307,7 +307,7 @@ class Monte_carlo(RandomBot):
             stack_bonus = (count ** 1.2) * 10 if count <= 3 else (3 ** 1.2) * 10 + (count-3)*10
             
             # --- CẢI TIẾN: Giai đoạn đầu game (Engine Building) ---
-            # Nếu chưa có nhiều perm (total_perms < 5), tăng mạnh giá trị "mồi" của thẻ Level 1
+            # Nếu chưa có nhiều perm (total_perms < 5), tăng mạnh giá trị của thẻ Level 1
             engine_multiplier = 1.0
             if total_perms < 5:
                 engine_multiplier = 2.5 
@@ -316,7 +316,7 @@ class Monte_carlo(RandomBot):
             perm_score += (stack_bonus + (count * utility_weight)) * engine_multiplier
 
         # --- 3. ĐÁNH GIÁ HIỆU QUẢ LEVEL 1 (Sức mua tiềm năng) ---
-        # Thưởng thêm nếu các thẻ Perm hiện có giúp giảm giá mạnh cho các thẻ Level 2, 3
+        # Thưởng thêm nếu các thẻ Perm hiện có giúp giảm mạnh cho các thẻ Level 2, 3
         discount_value = 0
         if total_perms > 0:
             for card in cards:
@@ -327,14 +327,19 @@ class Monte_carlo(RandomBot):
                         discount_value += min(card.resources[i], bot_player.perm.get(color_name, 0)) * 2
 
         # --- 4. TỔNG HỢP CÁC CHỈ SỐ KHÁC ---
-        # (Giữ nguyên raw_point_score, gap_score, noble_progress từ code trước của bạn)
+        
         opponents = [p for i, p in enumerate(players) if i != bot_index]
         max_opponent_point = max(p.point for p in opponents) if opponents else 0
         raw_point_score = bot_player.point * 60
         gap_score = (bot_player.point - max_opponent_point) * 30
         
-        # Noble progress (như cũ)
-        noble_progress = 0 # ... logic cũ của bạn ...
+       
+        noble_progress = 0
+        for noble in (shown_nobles or []):
+            needed = sum(max(0, noble.resources[i] - bot_player.perm.get(colors[i], 0)) for i in range(5))
+            if needed == 0: noble_progress += 0
+            elif needed == 1: noble_progress += 50
+            elif needed == 2: noble_progress += 25
 
         temp_score = sum(bot_player.temp.values()) * 2
         overflow_penalty = max(0, bot_player.total_temp - 8) * -5 

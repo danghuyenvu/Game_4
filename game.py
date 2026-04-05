@@ -636,7 +636,6 @@ class Game():
                         player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
 
                     self.remove_card_from_board(self.choosing_card)
-
             # ===== RESERVE =====
             elif self.current_action == "RESERVE":
                 if len(player.deposit_card) < 3:
@@ -681,7 +680,8 @@ class Game():
                         player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
 
                     self.remove_card_from_board(player.choosing_card)
-
+                if isinstance(player, Monte_carlo):
+                    player._acquire_available_nobles(player, self.shown_nobles)
             # ===== RESERVE =====
             elif self.current_action == "RESERVE":
                 if len(player.deposit_card) < 3:

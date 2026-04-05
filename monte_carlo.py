@@ -48,6 +48,37 @@ class Monte_carlo(RandomBot):
         for action in available_actions:
             score = self._simulate_action(action, cards, bank, players, self.shown_nobles)
             self.action_values[str(action)] = score
+
+            # 2. THÊM LOGIC: Ưu tiên mua thẻ có chi phí gems thực tế thấp (Efficiency Bonus)
+            if action[0] == "BUY":
+                card = action[1]
+                actual_gems_spent = 0
+                gold_spent = 0
+                
+                for i in range(5):
+                    color = ["black", "blue", "green", "red", "white"][i]
+                    cost = card.resources[i]
+                    perm_resource = self.perm.get(color, 0)
+                    
+                    # Nếu tài nguyên vĩnh viễn không đủ, phải dùng gems tạm thời
+                    if perm_resource < cost:
+                        needed = cost - perm_resource
+                        available_temp = self.temp.get(color, 0)
+                        
+                        if available_temp >= needed:
+                            actual_gems_spent += needed
+                        else:
+                            # Phải dùng thêm Gold
+                            actual_gems_spent += available_temp
+                            gold_spent += (needed - available_temp)
+                
+                total_cost_from_pocket = actual_gems_spent + (gold_spent * 1.5) # Gold quý hơn nên trọng số cao hơn
+                
+                # Thưởng nếu chi phí bỏ ra thấp (Càng ít gems rời tay càng tốt)
+                # Ví dụ: Nếu tốn 0 gems (mua bằng 100% perms), thưởng 50 điểm.
+                efficiency_bonus = max(0, (5 - total_cost_from_pocket) * 10)
+                score += efficiency_bonus
+            
             if action[0] == "RESERVE":
                 score -= (action[1].level - 1)*100 
             if score > best_score:
@@ -227,7 +258,7 @@ class Monte_carlo(RandomBot):
         """
         if shown_nobles is None: shown_nobles = []
         bot_index = current_player_idx
-        max_depth = 6 
+        max_depth = 6
         
         for _ in range(max_depth):
             current_player_idx = (current_player_idx + 1) % len(players)

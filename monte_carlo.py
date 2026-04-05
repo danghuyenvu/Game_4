@@ -48,7 +48,8 @@ class Monte_carlo(RandomBot):
         for action in available_actions:
             score = self._simulate_action(action, cards, bank, players, self.shown_nobles)
             self.action_values[str(action)] = score
-            
+            if action[0] == "RESERVE":
+                score -= (action[1].level - 1)*100 
             if score > best_score:
                 best_score = score
                 best_action = action
@@ -247,7 +248,9 @@ class Monte_carlo(RandomBot):
                 # Ở đây ta ưu tiên BUY > RESERVE > TAKE GEMS
                 act_score = 0
                 if act[0] == "BUY": 
-                    act_score = 100 + act[1].points * 10
+                    card = act[1]
+                    value = self._get_card_value(card, cards, current_player.perm)
+                    act_score = 100 + card.points * 10 + value * 50
                 elif act[0] == "TAKE_GEMS": 
                     act_score = 7 * len(act[1])
                 elif act[0] == "TAKE_SAME": 
@@ -408,6 +411,39 @@ class Monte_carlo(RandomBot):
         
         return True
 
+    def _can_afford_with_perm(self, card, perm, temp):
+        """Check if can afford card with given perm and temp"""
+        total_gold = temp.get("gold", 0)
+        remaining_gold = total_gold
+        
+        for i in range(5):
+            color = ["black", "blue", "green", "red", "white"][i]
+            cost = card.resources[i]
+            available = temp.get(color, 0) + perm.get(color, 0)
+            
+            if available < cost:
+                # Need gold to make up the difference
+                needed_gold = cost - available
+                remaining_gold -= needed_gold
+                if remaining_gold < 0:
+                    return False
+        
+        return True
+
+    def _get_card_value(self, card, all_cards, current_perm):
+        """Calculate the value of buying a card based on how many same-level cards it unlocks"""
+        if card.level not in [1, 2]:
+            return 0
+        
+        level_cards = [c for c in all_cards if c.level == card.level]
+        new_perm = current_perm.copy()
+        new_perm[card.color] = new_perm.get(card.color, 0) + 1
+        
+        current_count = sum(1 for c in level_cards if self._can_afford_with_perm(c, current_perm, self.temp))
+        new_count = sum(1 for c in level_cards if self._can_afford_with_perm(c, new_perm, self.temp))
+        
+        return new_count - current_count
+
     def _card_cost_to_dict(self, card) -> dict:
         """Convert card resources to cost dictionary"""
         keys = ["black", "blue", "green", "red", "white"]
@@ -452,5 +488,6 @@ class Monte_carlo(RandomBot):
         for noble in nobles_to_acquire:
             player.add_noble(noble)
             shown_nobles.remove(noble)
+            break
 
 

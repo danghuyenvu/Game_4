@@ -46,3 +46,8 @@ class Bank:
     def pay(self, gems):
         for i in range(6):
             self.gem[i] += gems[i]
+
+    def copy(self):
+        new_bank = Bank.__new__(Bank)
+        new_bank.gem = self.gem.copy()
+        return new_bank

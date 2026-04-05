@@ -7,6 +7,7 @@ from Deck import *
 from bank import *
 from Menu import *
 from player import *
+from minimax import *
 from monte_carlo import *
 import time
 
@@ -64,7 +65,6 @@ class Game():
         self.current_action = None   # "TAKE 3", "TAKE 2", "RESERVE", "BUY"
         self.selected_gems = []      # indices for TAKE 3
         self.selected_gem = None     # index for TAKE 2
-        self.noble_chosen_this_frame = False  # Prevent re-checking nobles after choosing one
 
     # Setting up game (can be used to restart new game)
     def init_game(self, num_player = 2, bot=None):
@@ -451,11 +451,15 @@ class Game():
         player = self.players[self.current_player]
         if isinstance(player, Monte_carlo):
             self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank, self.players, self.shown_nobles)
-            print(f"BOT MOVE: {self.current_action}")
+            print(f"MONTE BOT MOVE: {self.current_action}")
+            self.execute_action()
+        elif isinstance(player, MinmaxPlayer):
+            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank, self.players, self.shown_nobles)
+            print(f"MINMAX BOT MOVE: {self.current_action}")
             self.execute_action()
         elif isinstance(player, RandomBot):
-            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank, self.shown_nobles)
-            print(f"BOT MOVE: {self.current_action}")
+            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank)
+            print(f"RANDO BOT MOVE: {self.current_action}")
             self.execute_action()
 
 
@@ -491,9 +495,9 @@ class Game():
                             cur.add_noble(noble)
                             self.shown_nobles.remove(noble)
                             # Draw a new noble if available
-                            new_noble = self.nobles.draw()
-                            if new_noble:
-                                self.shown_nobles.append(new_noble)
+                            # new_noble = self.nobles.draw()
+                            # if new_noble:
+                            #     self.shown_nobles.append(new_noble)
                             self.choosing_nobles = []
                             self.show_noble_overlay = False
                             self.noble_chosen_this_frame = True  # Prevent re-checking nobles this frame
@@ -717,9 +721,9 @@ class Game():
 
             # ===== TAKE 2 =====
             elif self.current_action == "TAKE 2":
-                if self.bank.get_2(player.selected_gems):
+                if self.bank.get_2(player.selected_gem):
                     keys = ["black","blue","green","red","white"]
-                    player.temp[keys[player.selected_gems]] += 2
+                    player.temp[keys[player.selected_gem]] += 2
 
         # reset everything
         self.current_action = None

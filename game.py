@@ -1,5 +1,6 @@
 import pygame
 from concurrent.futures import ThreadPoolExecutor
+import threading
 
 from pygame.locals import *
 from settings import * 
@@ -7,6 +8,7 @@ from Deck import *
 from bank import *
 from Menu import *
 from player import *
+from minimax import *
 from monte_carlo import *
 import time
 
@@ -23,6 +25,10 @@ class Game():
         self.start = False
 
         self.running = True
+        self.bot_thinking = False
+        self.game_over = False
+        self.winner_text = ""
+        self.bot = None
         self.executor = ThreadPoolExecutor(max_workers=workers)
         # game stuffs here
         self.cards = None
@@ -64,10 +70,10 @@ class Game():
         self.current_action = None   # "TAKE 3", "TAKE 2", "RESERVE", "BUY"
         self.selected_gems = []      # indices for TAKE 3
         self.selected_gem = None     # index for TAKE 2
-        self.noble_chosen_this_frame = False  # Prevent re-checking nobles after choosing one
 
     # Setting up game (can be used to restart new game)
     def init_game(self, num_player = 2, bot=None):
+        self.bot = bot
         if not hasattr(self, 'font'):
             self.font = pygame.font.SysFont("Arial", 16, bold=True)
         cards_by_level, self.cards, self.nobles = process_card_data()
@@ -185,7 +191,11 @@ class Game():
     def play(self):
         while self.running:
             self.handle_input()
-            self.handle_bot()
+            if not self.game_over:
+                self.handle_bot()
+                if len(self.choosing_nobles):
+                    for noble in self.shown_nobles:
+                        print(noble.resources)
             self.draw()
             self.update()
             self.clock.tick(FPS)
@@ -417,6 +427,33 @@ class Game():
                 pygame.draw.rect(self.screen, (255, 255, 255), rect, 2)
                 noble.draw(self.screen, (x, y))
 
+        if self.bot_thinking:
+            # Semi-transparent overlay
+            overlay = pygame.Surface(WINDOW_RESOLUTION, pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 128))  # Semi-transparent black
+            self.screen.blit(overlay, (0, 0))
+            
+            # Text
+            thinking_text = self.font.render("Bot is Thinking...", True, (255, 255, 255))
+            text_rect = thinking_text.get_rect(center=(WINDOW_RESOLUTION[0] // 2, WINDOW_RESOLUTION[1] // 2))
+            self.screen.blit(thinking_text, text_rect)
+
+        if self.game_over:
+            # Semi-transparent overlay
+            overlay = pygame.Surface(WINDOW_RESOLUTION, pygame.SRCALPHA)
+            overlay.fill((0, 0, 0, 200))  # More opaque for game over
+            self.screen.blit(overlay, (0, 0))
+            
+            # Winner text - handle multiline
+            lines = self.winner_text.split('\n')
+            y_offset = WINDOW_RESOLUTION[1] // 2 - (len(lines) - 1) * 15  # Center vertically
+            for line in lines:
+                if line.strip():  # Skip empty lines
+                    text_surf = self.font.render(line, True, (255, 255, 0))
+                    text_rect = text_surf.get_rect(center=(WINDOW_RESOLUTION[0] // 2, y_offset))
+                    self.screen.blit(text_surf, text_rect)
+                    y_offset += 30  # Line spacing
+
         self.menu.draw(self.screen)
         pygame.display.flip()
 
@@ -449,14 +486,18 @@ class Game():
 
     def handle_bot(self):
         player = self.players[self.current_player]
-        if isinstance(player, Monte_carlo):
-            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank, self.players, self.shown_nobles)
-            print(f"BOT MOVE: {self.current_action}")
-            self.execute_action()
-        elif isinstance(player, RandomBot):
-            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank, self.shown_nobles)
-            print(f"BOT MOVE: {self.current_action}")
-            self.execute_action()
+        if isinstance(player, RandomBot):
+            def bot_action():
+                action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank, self.players, self.shown_nobles)
+                self.current_action = action
+                print(f"BOT MOVE: {self.current_action}")
+                self.execute_action()
+                # self.next_turn()
+                self.bot_thinking = False
+            
+            if not self.bot_thinking:
+                self.bot_thinking = True
+                threading.Thread(target=bot_action).start()
 
 
     def handle_input(self):
@@ -467,6 +508,15 @@ class Game():
                 continue
             if event.type == pygame.QUIT:
                 self.running = False
+            if self.game_over:
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_RETURN:
+                        self.restart_game()
+                    elif event.key == pygame.K_ESCAPE:
+                        self.running = False
+                return
+            if self.bot_thinking:
+                return
             elif event.type == pygame.KEYDOWN:
                 if event.key == pygame.K_ESCAPE:
                     self.menu.in_menu = True
@@ -476,7 +526,6 @@ class Game():
             if isinstance(player, RandomBot):
                 return
             if event.type == pygame.MOUSEBUTTONDOWN:
-                print("clicked")
                 pos = event.pos
                 
                 # ===== NOBLE OVERLAY =====
@@ -491,9 +540,9 @@ class Game():
                             cur.add_noble(noble)
                             self.shown_nobles.remove(noble)
                             # Draw a new noble if available
-                            new_noble = self.nobles.draw()
-                            if new_noble:
-                                self.shown_nobles.append(new_noble)
+                            # new_noble = self.nobles.draw()
+                            # if new_noble:
+                            #     self.shown_nobles.append(new_noble)
                             self.choosing_nobles = []
                             self.show_noble_overlay = False
                             self.noble_chosen_this_frame = True  # Prevent re-checking nobles this frame
@@ -575,12 +624,39 @@ class Game():
                 if self.current_action and hasattr(self, "confirm_rect") and self.confirm_rect.collidepoint(pos):
                     if self.can_confirm():
                         self.execute_action()
+                        # self.next_turn()
 
     def next_turn(self):
+        old_player = self.current_player
         self.current_player = (self.current_player + 1) % len(self.players)
+        if old_player == len(self.players) - 1 and self.current_player == 0:
+            self.check_end_game()
         self.choosing_card = None
         self.choosing_cost = [0,0,0,0,0,0]
         self.choosing_gems = [0,0,0,0,0]
+
+    def check_end_game(self):
+        max_points = max(p.point for p in self.players)
+        if max_points >= 15:
+            winners = [f"Player {i+1}" for i, p in enumerate(self.players) if p.point == max_points]
+            self.winner_text = f"Game Over! Winner(s): {', '.join(winners)}\n\nPress ENTER for new game\nPress ESC to quit"
+            self.game_over = True
+
+    def restart_game(self):
+        self.game_over = False
+        self.winner_text = ""
+        self.bot_thinking = False
+        self.current_player = 0
+        self.choosing_card = None
+        self.choosing_cost = [0,0,0,0,0,0]
+        self.choosing_gems = [0,0,0,0,0]
+        self.selected_gems = []
+        self.selected_gem = None
+        self.current_action = None
+        self.show_noble_overlay = False
+        self.choosing_nobles = []
+        self.noble_chosen_this_frame = False
+        self.init_game(self.num_player, self.bot)
 
     def can_confirm(self):
         player = self.players[self.current_player]
@@ -729,7 +805,8 @@ class Game():
         # ---- check for and perform noble logic at the end of the turn
         # Check for noble availability after action completion
         cur = self.players[self.current_player]
-        perm_gems = [item for item in cur.perm.values()]
+        keys = ["black", "blue", "green", "red", "white"]
+        perm_gems = [cur.perm.get(item) for item in keys]
         available_nobles = [noble for noble in self.shown_nobles if noble.can_get(perm_gems)]
         
         if isinstance(cur, RandomBot):

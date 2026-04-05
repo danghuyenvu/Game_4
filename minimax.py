@@ -1,15 +1,20 @@
 ﻿import copy
 from itertools import combinations
 from Deck import card_cost_to_dict
-from player import Player
+from player import RandomBot
 
-class MinmaxPlayer(Player):
-    def __init__(self, search_depth=2):
+class MinmaxPlayer(RandomBot):
+    def __init__(self, search_depth=5):
         super().__init__()
         self.search_depth = search_depth
 
     # ===== ENTRY =====
-    def get_action(self, cards, bank, players, shown_nobles=None):
+    def get_action(self, cards, bank, players=None, shown_nobles=None):
+        if players is None:
+            players = []
+        if shown_nobles is None:
+            shown_nobles = []
+
         current_idx = next((i for i, p in enumerate(players) if p is self), 0)
         _, action = self.minimax(
             cards,
@@ -20,10 +25,13 @@ class MinmaxPlayer(Player):
             beta=float("inf"),
             maximizing=True,
             current_idx=current_idx,
-            bot_idx=current_idx
+            bot_idx=current_idx,
+            shown_nobles=shown_nobles
         )
 
         if action:
+            if action[0] == "RESERVE" and bank.can_book() and sum(self.temp.values()) + 1 <= 10:
+                self.total_temp += 1
             self.apply_action(action)
 
         return self.current_action
@@ -43,10 +51,12 @@ class MinmaxPlayer(Player):
         elif action_type == "TAKE3":
             self.current_action = "TAKE 3"
             self.selected_gems = action_data
+            self.total_temp += len(action_data)
 
         elif action_type == "TAKE2":
             self.current_action = "TAKE 2"
             self.selected_gem = action_data
+            self.total_temp += 2
 
     # ===== ACTION GENERATION =====
     def get_actions(self, board, bank, player):
@@ -68,7 +78,7 @@ class MinmaxPlayer(Player):
                 actions.append(("RESERVE", card))
 
         # ===== TAKE 3 =====
-        current_gems = sum(player.temp.get(color, 0) for color in keys) + player.temp.get("gold", 0)
+        current_gems = sum(player.temp.values())
         available_colors = [i for i in range(5) if bank.gem[i] > 0]
 
         if current_gems + 3 <= 10:
@@ -85,7 +95,9 @@ class MinmaxPlayer(Player):
         return actions
 
     # ===== MINIMAX + ALPHA-BETA =====
-    def minimax(self, board, bank, players, depth, alpha, beta, maximizing, current_idx, bot_idx):
+    def minimax(self, board, bank, players, depth, alpha, beta, maximizing, current_idx, bot_idx, shown_nobles=None):
+        if shown_nobles is None:
+            shown_nobles = []
         if depth == 0:
             return self.evaluate(players, bot_idx), None
 
@@ -98,8 +110,8 @@ class MinmaxPlayer(Player):
             best_action = None
 
             for action in actions:
-                next_board, next_bank, next_players = self.simulate(
-                    action, board, bank, players, current_idx
+                next_board, next_bank, next_players, next_nobles = self.simulate(
+                    action, board, bank, players, current_idx, shown_nobles
                 )
 
                 val, _ = self.minimax(
@@ -111,7 +123,8 @@ class MinmaxPlayer(Player):
                     beta,
                     False,
                     (current_idx + 1) % len(players),
-                    bot_idx
+                    bot_idx,
+                    shown_nobles=next_nobles
                 )
 
                 if val > best_val:
@@ -127,8 +140,8 @@ class MinmaxPlayer(Player):
         best_val = float("inf")
 
         for action in actions:
-            next_board, next_bank, next_players = self.simulate(
-                action, board, bank, players, current_idx
+            next_board, next_bank, next_players, next_nobles = self.simulate(
+                action, board, bank, players, current_idx, shown_nobles
             )
 
             val, _ = self.minimax(
@@ -140,7 +153,8 @@ class MinmaxPlayer(Player):
                 beta,
                 True,
                 (current_idx + 1) % len(players),
-                bot_idx
+                bot_idx,
+                shown_nobles=next_nobles
             )
 
             best_val = min(best_val, val)
@@ -168,10 +182,11 @@ class MinmaxPlayer(Player):
         return score - opp * 2
 
     # ===== SIMULATION =====
-    def simulate(self, action, board, bank, players, idx):
-        board_copy = copy.deepcopy(board)
-        bank_copy = copy.deepcopy(bank)
-        players_copy = copy.deepcopy(players)
+    def simulate(self, action, board, bank, players, idx, shown_nobles=None):
+        board_copy = board.copy()
+        bank_copy = bank.copy() if hasattr(bank, "copy") else copy.deepcopy(bank)
+        players_copy = [p.copy() if hasattr(p, "copy") else copy.deepcopy(p) for p in players]
+        nobles_copy = shown_nobles.copy() if shown_nobles else []
 
         player = players_copy[idx]
         keys = ["black", "blue", "green", "red", "white"]
@@ -193,17 +208,23 @@ class MinmaxPlayer(Player):
             payment = player.purchase(cost, action_data)
             if payment:
                 bank_copy.pay(payment)
+                player.total_temp = max(player.total_temp - sum(payment), 0)
                 self._add_perm_bonus(player, action_data)
+                if action_data in board_copy:
+                    board_copy.remove(action_data)
 
         elif action_type == "RESERVE":
             if len(player.deposit_card) < 3:
                 player.deposit(action_data)
+                if action_data in board_copy:
+                    board_copy.remove(action_data)
                 if bank_copy.can_book() and player.total_temp + 1 <= 10:
                     bank_copy.gem[5] -= 1
                     player.temp["gold"] += 1
                     player.total_temp += 1
 
-        return board_copy, bank_copy, players_copy
+        self._acquire_available_nobles(player, nobles_copy)
+        return board_copy, bank_copy, players_copy, nobles_copy
 
     def _add_perm_bonus(self, player, card):
         color_map = {
@@ -216,6 +237,16 @@ class MinmaxPlayer(Player):
         bonus_color = color_map.get(card.color)
         if bonus_color:
             player.perm[bonus_color] = player.perm.get(bonus_color, 0) + 1
+
+    def _acquire_available_nobles(self, player, shown_nobles):
+        perm_gems = [player.perm.get(color, 0) for color in ["black", "blue", "green", "red", "white"]]
+        available_nobles = [noble for noble in shown_nobles if noble.can_get(perm_gems)]
+        if not available_nobles:
+            return
+
+        best_noble = max(available_nobles, key=lambda n: n.points)
+        player.add_noble(best_noble)
+        shown_nobles.remove(best_noble)
 
     # ===== PURCHASE CHECK =====
     def can_purchase_sim(self, player, cost):

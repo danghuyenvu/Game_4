@@ -454,7 +454,7 @@ class Game():
             print(f"BOT MOVE: {self.current_action}")
             self.execute_action()
         elif isinstance(player, RandomBot):
-            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank)
+            self.current_action = player.get_action(self.board[1] + self.board[2] + self.board[3], self.bank, self.shown_nobles)
             print(f"BOT MOVE: {self.current_action}")
             self.execute_action()
 
@@ -735,7 +735,15 @@ class Game():
         available_nobles = [noble for noble in self.shown_nobles if noble.can_get(perm_gems)]
         
         if isinstance(cur, RandomBot):
-            pass
+            # RandomBot: automatically choose a random noble if available
+            chosen_noble = cur.check_and_choose_noble(self.shown_nobles)
+            if chosen_noble:
+                cur.add_noble(chosen_noble)
+                self.shown_nobles.remove(chosen_noble)
+                # Draw a new noble if available
+                new_noble = self.nobles.draw()
+                if new_noble:
+                    self.shown_nobles.append(new_noble)
         else:
             # Human players: show overlay if multiple nobles available
             if len(available_nobles) > 1:

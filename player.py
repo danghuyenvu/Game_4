@@ -131,7 +131,7 @@ class RandomBot(Player):
                 return False
         return True
 
-    def get_action(self, cards, bank, nobles, players=None):
+    def get_action(self, cards, bank, nobles, players=None, Nobles=None):
         valid_actions = []
 
         # ===== BUY =====

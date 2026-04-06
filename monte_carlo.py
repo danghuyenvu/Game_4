@@ -102,7 +102,7 @@ class Monte_carlo(RandomBot):
             return self.current_action
         elif best_action[0] == "TAKE_SAME":
             self.current_action = "TAKE 2"
-            self.selected_gem = best_action[1]
+            self.selected_gems = best_action[1]
             return self.current_action
         return None
 

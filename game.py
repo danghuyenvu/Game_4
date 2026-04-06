@@ -681,6 +681,9 @@ class Game():
                 card = getattr(self, f"level{level}").draw()
                 if card:
                     self.board[level].append(card)
+                else:
+                    self.card_rects[level - 1].pop()
+                    break
 
         # move chosen deposit to last to blit
         cur = self.players[self.current_player]
@@ -764,9 +767,9 @@ class Game():
                             cur.add_noble(noble)
                             self.shown_nobles.remove(noble)
                             # Draw a new noble if available
-                            new_noble = self.nobles.draw()
-                            if new_noble:
-                                self.shown_nobles.append(new_noble)
+                            # new_noble = self.nobles.draw()
+                            # if new_noble:
+                            #     self.shown_nobles.append(new_noble)
                             self.choosing_nobles = []
                             self.show_noble_overlay = False
                             self.noble_chosen_this_frame = True  # Prevent re-checking nobles this frame
@@ -1023,7 +1026,7 @@ class Game():
             elif self.current_action == "TAKE 2":
                 if self.bank.get_2(player.selected_gems):
                     keys = ["black","blue","green","red","white"]
-                    player.temp[keys[player.selected_gem]] += 2
+                    player.temp[keys[player.selected_gems]] += 2
 
         # reset everything
         self.current_action = None
@@ -1044,9 +1047,9 @@ class Game():
                 cur.add_noble(chosen_noble)
                 self.shown_nobles.remove(chosen_noble)
                 # Draw a new noble if available
-                new_noble = self.nobles.draw()
-                if new_noble:
-                    self.shown_nobles.append(new_noble)
+                # new_noble = self.nobles.draw()
+                # if new_noble:
+                #     self.shown_nobles.append(new_noble)
         else:
             # Human players: show overlay if multiple nobles available
             if len(available_nobles) > 1:
@@ -1059,9 +1062,9 @@ class Game():
                 cur.add_noble(available_nobles[0])
                 self.shown_nobles.remove(available_nobles[0])
                 # Draw a new noble if available
-                new_noble = self.nobles.draw()
-                if new_noble:
-                    self.shown_nobles.append(new_noble)
+                # new_noble = self.nobles.draw()
+                # if new_noble:
+                #     self.shown_nobles.append(new_noble)
 
         # ===== END TURN =====
         self.next_turn()
@@ -1072,3 +1075,14 @@ class Game():
         self.players = [Player()]
         for i in range(1, num_players):
             self.players.append(self.get_selected_bot())
+
+        # draw additional nobles
+        if self.num_player > 2:
+            [self.shown_nobles.append(self.nobles.draw()) for i in range(self.num_player + 1 - 3)]
+
+        self.noble_rects = []
+        for i, noble in enumerate(self.shown_nobles):
+            noble_rect = pygame.Rect(START_X + (i + 1) * (CARD_W + GAP), 20, CARD_W, CARD_W) # Noble thường hình vuông
+            self.noble_rects.append(noble_rect)
+
+        self.bank = Bank(None, self, self.num_player)

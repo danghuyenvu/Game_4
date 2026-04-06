@@ -55,7 +55,7 @@ class MinmaxPlayer(RandomBot):
 
         elif action_type == "TAKE2":
             self.current_action = "TAKE 2"
-            self.selected_gem = action_data
+            self.selected_gems = action_data
             self.total_temp += 2
 
     # ===== ACTION GENERATION =====

@@ -86,7 +86,7 @@ class Menu:
             volume_text = self.font.render("Volume:", True, (255,255,255))
             scale_text = self.font.render("Scale:", True, (255,255,255))
             players_text = self.font.render(f"Players: {self.current_num_players}", True, (255,255,255))
-            bot_text = self.font.render(f"Bot: {BOT_TYPES[self.current_bot]}", True, (255,255,255))
+            bot_text = self.font.render(f"{BOT_TYPES[self.current_bot]}", True, (255,255,255))
             
             # Position texts 35 pixels above their respective button rows
             screen.blit(volume_text, (self.cx - volume_text.get_width()//2, self.cy - 3*self.spacing - 15))

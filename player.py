@@ -140,6 +140,10 @@ class RandomBot(Player):
             cost = card_cost_to_dict(card)
             if self.can_purchase(cost): 
                 buyable_cards.append(card)
+        for card in self.deposit_card:
+            cost = card_cost_to_dict(card)
+            if self.can_purchase(cost):
+                buyable_cards.append(card)
 
         if buyable_cards:
             valid_actions.append("BUY")

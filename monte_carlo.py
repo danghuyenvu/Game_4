@@ -258,7 +258,7 @@ class Monte_carlo(RandomBot):
         """
         if shown_nobles is None: shown_nobles = []
         bot_index = current_player_idx
-        max_depth = 6
+        max_depth = len(players) * 3
         
         for _ in range(max_depth):
             current_player_idx = (current_player_idx + 1) % len(players)
@@ -297,7 +297,6 @@ class Monte_carlo(RandomBot):
             self._acquire_available_nobles(current_player, shown_nobles)
             
         
-        # Cuối cùng chỉ trả về score của Bot tại trạng thái kết thúc mô phỏng
         return self.score_by_step(players, bot_index, bank, cards, shown_nobles)
         
 

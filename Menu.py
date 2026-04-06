@@ -25,6 +25,7 @@ class Menu:
         self.state = 0
         self.in_menu = True
         self.settings = False
+        self.current_bot = 0  # index in BOT_TYPES
         self.rect = self.image.get_rect(topleft=(0,0))
         self.font = pygame.font.SysFont("Arial", 28, bold=True)
 
@@ -47,6 +48,8 @@ class Menu:
 
         # pause menu buttons
         cx, cy = WINDOW_RESOLUTION[0]*GAME_SCALE//2, WINDOW_RESOLUTION[1]*GAME_SCALE//2
+        self.cx = cx
+        self.cy = cy
         self.pause_buttons = [
             MenuButton("Continue", (cx, cy-spacing), button_size, (0,0,200), (100,100,255)),
             MenuButton("Settings", (cx, cy), button_size, (0,0,200), (100,100,255)),
@@ -55,10 +58,12 @@ class Menu:
 
         # settings menu buttons (always centered, pure black background)
         self.settings_buttons = [
-            MenuButton("Volume -", (cx-150, cy-spacing), (150, 60), (0,0,200), (100,100,255)),
-            MenuButton("Volume +", (cx+150, cy-spacing), (150, 60), (0,0,200), (100,100,255)),
-            MenuButton("Scale -", (cx-150, cy), (150, 60), (0,0,200), (100,100,255)),
-            MenuButton("Scale +", (cx+150, cy), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Volume -", (cx-150, cy-2*spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Volume +", (cx+150, cy-2*spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Scale -", (cx-150, cy-spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Scale +", (cx+150, cy-spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Bot -", (cx-150, cy), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Bot +", (cx+150, cy), (150, 60), (0,0,200), (100,100,255)),
             MenuButton("Back", (cx, cy+spacing), button_size, (0,0,200), (100,100,255)),
         ]
         self.buttons = self.init_buttons
@@ -70,6 +75,10 @@ class Menu:
         screen.blit(self.image, self.rect)
         for b in self.buttons:
             b.draw(screen, self.font)
+        
+        if self.settings:
+            bot_text = self.font.render(f"{BOT_TYPES[self.current_bot]}", True, (255,255,255))
+            screen.blit(bot_text, (self.cx - bot_text.get_width()//2, self.cy - 20))
 
     def update(self):
         if self.settings:
@@ -106,6 +115,10 @@ class Menu:
                             print("Decrease scale")
                         case "Scale +":
                             print("Increase scale")
+                        case "Bot -":
+                            self.current_bot = (self.current_bot - 1) % len(BOT_TYPES)
+                        case "Bot +":
+                            self.current_bot = (self.current_bot + 1) % len(BOT_TYPES)
             return False
 
         for b in self.buttons:

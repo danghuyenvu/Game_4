@@ -25,6 +25,7 @@ class Game():
         # Menu
         self.menu = Menu()
         self.start = False
+        self.initialized = False
 
         self.running = True
         self.bot_thinking = False
@@ -75,6 +76,17 @@ class Game():
         self.current_action = None   # "TAKE 3", "TAKE 2", "RESERVE", "BUY"
         self.selected_gems = []      # indices for TAKE 3
         self.selected_gem = None     # index for TAKE 2
+
+    def get_selected_bot(self):
+        from settings import BOT_TYPES
+        bot_index = self.menu.current_bot
+        if bot_index == 0:
+            return RandomBot()
+        elif bot_index == 1:
+            return Monte_carlo()
+        elif bot_index == 2:
+            return MinmaxPlayer()
+        return RandomBot()  # default
 
     # Setting up game (can be used to restart new game)
     def init_game(self, num_player = 2, bot=None):
@@ -192,6 +204,8 @@ class Game():
             card_pos = (DEPOSIT_POS[0] + DEPOSIT_OFFSET * index, DEPOSIT_POS[1])
             rect = card.image.get_rect(topleft=card_pos)
             self.deposit_rects.append(rect)
+
+        self.save_game_state('initial_game.pkl')
 
     def clear_pygame_surfaces(self, obj, seen=None):
         """Recursively clear pygame Surface objects from game objects."""
@@ -699,6 +713,12 @@ class Game():
                     if self.menu.selected_option == "Continue":
                         if os.path.exists(os.path.join(self.save_dir, 'current_game.pkl')):
                             self.load_game_state('current_game.pkl')
+                            self.initialized = True
+                        self.menu.selected_option = None
+                    elif self.menu.selected_option == "Start Game (PvE)":
+                        if not self.initialized:
+                            self.players[-1] = self.get_selected_bot()
+                            self.initialized = True
                         self.menu.selected_option = None
                     self.start = True
                 continue

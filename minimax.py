@@ -4,7 +4,7 @@ from Deck import card_cost_to_dict
 from player import RandomBot
 
 class MinmaxPlayer(RandomBot):
-    def __init__(self, search_depth=5):
+    def __init__(self, search_depth=4):
         super().__init__()
         self.search_depth = search_depth
 
@@ -98,12 +98,12 @@ class MinmaxPlayer(RandomBot):
     def minimax(self, board, bank, players, depth, alpha, beta, maximizing, current_idx, bot_idx, shown_nobles=None):
         if shown_nobles is None:
             shown_nobles = []
-        if depth == 0:
-            return self.evaluate(players, bot_idx), None
+        if depth == 0 or any(p.point >= 15 for p in players):
+            return self.evaluate(players, bot_idx, shown_nobles), None
 
         actions = self.get_actions(board, bank, players[current_idx])
         if not actions:
-            return self.evaluate(players, bot_idx), None
+            return self.evaluate(players, bot_idx, shown_nobles), None
 
         if maximizing:
             best_val = -float("inf")
@@ -165,21 +165,29 @@ class MinmaxPlayer(RandomBot):
         return best_val, None
 
     # ===== EVALUATION =====
-    def evaluate(self, players, bot_idx):
+    def evaluate(self, players, bot_idx, shown_nobles=None):
         me = players[bot_idx]
+
+        if me.point >= 15:
+            return 9999 + me.point
+        
+        opp_best = max(p.point for i, p in enumerate(players) if i != bot_idx)
+        if opp_best >= 15:
+            return -9999
 
         temp_total = sum(me.temp.values())
         perm_total = sum(me.perm.values())
+        
+        noble_score = self.noble_progress(me, shown_nobles)
 
         score = (
-            me.point * 3 +
+            me.point * 4 +
             temp_total +
             perm_total * 2 +
-            temp_total
+            noble_score * 3
         )
 
-        opp = sum(p.point for i, p in enumerate(players) if i != bot_idx)
-        return score - opp * 2
+        return score - opp_best * 3
 
     # ===== SIMULATION =====
     def simulate(self, action, board, bank, players, idx, shown_nobles=None):
@@ -193,13 +201,13 @@ class MinmaxPlayer(RandomBot):
         action_type, action_data = action
 
         if action_type == "TAKE3":
-            if bank_copy.get_3(action_data):
+            if sum(player.temp.values()) + len(action_data) <= 10 and bank_copy.get_3(action_data):
                 for i in action_data:
                     player.temp[keys[i]] += 1
                     player.total_temp += 1
 
         elif action_type == "TAKE2":
-            if bank_copy.get_2(action_data):
+            if sum(player.temp.values()) + 2 <= 10 and bank_copy.get_2(action_data):
                 player.temp[keys[action_data]] += 2
                 player.total_temp += 2
 
@@ -264,3 +272,11 @@ class MinmaxPlayer(RandomBot):
                 return False
 
         return True
+    
+    def noble_progress(self, player, nobles):
+        progress = 0
+        for noble in nobles:
+            for i, color in enumerate(["black","blue","green","red","white"]):
+                need = noble.resources[i]
+                progress += min(player.perm.get(color, 0), need)
+        return progress

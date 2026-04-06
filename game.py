@@ -1016,7 +1016,7 @@ class Game():
             elif self.current_action == "TAKE 2":
                 if self.bank.get_2(player.selected_gems):
                     keys = ["black","blue","green","red","white"]
-                    player.temp[keys[player.selected_gems]] += 2
+                    player.temp[keys[player.selected_gem]] += 2
 
         # reset everything
         self.current_action = None

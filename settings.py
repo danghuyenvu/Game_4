@@ -29,6 +29,8 @@ ACTION_GAP = 10
 RESOURCE_START_X = 20
 GEM_DISPLAY_SIZE = 50 # Nhỏ hơn gem ở Bank một chút để vừa khung
 
+BOT_TYPES = ["Random", "Monte Carlo", "Minimax"]
+
 ACTION_ZONE_H = 150
 
 COLOR_INDEX = ["black","blue","green","red","white"]

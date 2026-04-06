@@ -725,6 +725,7 @@ class Game():
             if event.type == pygame.QUIT:
                 self.save_game_state('current_game.pkl')
                 self.running = False
+                return
             if self.game_over:
                 if event.type == pygame.KEYDOWN:
                     if event.key == pygame.K_RETURN:
@@ -757,9 +758,9 @@ class Game():
                             cur.add_noble(noble)
                             self.shown_nobles.remove(noble)
                             # Draw a new noble if available
-                            # new_noble = self.nobles.draw()
-                            # if new_noble:
-                            #     self.shown_nobles.append(new_noble)
+                            new_noble = self.nobles.draw()
+                            if new_noble:
+                                self.shown_nobles.append(new_noble)
                             self.choosing_nobles = []
                             self.show_noble_overlay = False
                             self.noble_chosen_this_frame = True  # Prevent re-checking nobles this frame
@@ -1016,7 +1017,7 @@ class Game():
             elif self.current_action == "TAKE 2":
                 if self.bank.get_2(player.selected_gems):
                     keys = ["black","blue","green","red","white"]
-                    player.temp[keys[player.selected_gems]] += 2
+                    player.temp[keys[player.selected_gem]] += 2
 
         # reset everything
         self.current_action = None

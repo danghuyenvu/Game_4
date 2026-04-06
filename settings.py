@@ -30,6 +30,8 @@ RESOURCE_START_X = 20
 GEM_DISPLAY_SIZE = 50 # Nhỏ hơn gem ở Bank một chút để vừa khung
 
 BOT_TYPES = ["Random", "Monte Carlo", "Minimax"]
+MIN_PLAYERS = 2
+MAX_PLAYERS = 4
 
 ACTION_ZONE_H = 150
 

@@ -90,7 +90,6 @@ class Game():
 
     # Setting up game (can be used to restart new game)
     def init_game(self, num_player = 2, bot=None):
-        self.bot = bot
         if not hasattr(self, 'font'):
             self.font = pygame.font.SysFont("Arial", 16, bold=True)
         cards_by_level, self.cards, self.nobles = process_card_data()
@@ -103,9 +102,10 @@ class Game():
             3: [self.level3.draw() for _ in range(4)]
         }
         self.num_player = num_player
-        self.players = [Player() for _ in range(num_player)]
-        if bot is not None:
-            self.players[-1] = bot
+        # Create first player as human, rest as bots
+        self.players = [Player()]
+        for i in range(1, num_player):
+            self.players.append(self.get_selected_bot())
         self.bank = Bank(self.gems, None, num_player)
         # load sprites trước khi draw
         for card in self.cards:
@@ -711,14 +711,20 @@ class Game():
                 self.menu.has_saved_game = os.path.exists(os.path.join(self.save_dir, 'current_game.pkl'))
                 if self.menu.handle_input(event):
                     if self.menu.selected_option == "Continue":
-                        if os.path.exists(os.path.join(self.save_dir, 'current_game.pkl')):
+                        # Only load saved game if in main menu (state == 0)
+                        # If in pause menu (state == 1), just resume
+                        if self.menu.state == 0 and os.path.exists(os.path.join(self.save_dir, 'current_game.pkl')):
                             self.load_game_state('current_game.pkl')
                             self.initialized = True
                         self.menu.selected_option = None
                     elif self.menu.selected_option == "Start Game (PvE)":
                         if not self.initialized:
-                            self.players[-1] = self.get_selected_bot()
+                            self.init_players(num_players = self.menu.current_num_players)
                             self.initialized = True
+                        self.menu.selected_option = None
+                    elif self.menu.selected_option == "Main Menu":
+                        self.initialized = False
+                        self.save_game_state('current_game.pkl')
                         self.menu.selected_option = None
                     self.start = True
                 continue
@@ -1059,3 +1065,10 @@ class Game():
 
         # ===== END TURN =====
         self.next_turn()
+
+    def init_players(self, num_players):
+        self.num_player = num_players
+        # Create first player as human, rest as bots
+        self.players = [Player()]
+        for i in range(1, num_players):
+            self.players.append(self.get_selected_bot())

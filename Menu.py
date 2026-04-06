@@ -26,12 +26,14 @@ class Menu:
         self.in_menu = True
         self.settings = False
         self.current_bot = 0  # index in BOT_TYPES
+        self.current_num_players = 2  # number of players (2-4)
         self.rect = self.image.get_rect(topleft=(0,0))
         self.font = pygame.font.SysFont("Arial", 28, bold=True)
 
         button_size = (300*GAME_SCALE, 70*GAME_SCALE)
         center_x, center_y = 870*GAME_SCALE, 500*GAME_SCALE
         spacing = 70
+        self.spacing = spacing
 
         # init menu buttons
         self.continue_button = MenuButton("Continue", (center_x, center_y-spacing), button_size)
@@ -53,15 +55,18 @@ class Menu:
         self.pause_buttons = [
             MenuButton("Continue", (cx, cy-spacing), button_size, (0,0,200), (100,100,255)),
             MenuButton("Settings", (cx, cy), button_size, (0,0,200), (100,100,255)),
-            MenuButton("Quit", (cx, cy+spacing), button_size, (0,0,200), (100,100,255)),
+            MenuButton("Main Menu", (cx, cy+spacing), button_size, (0,0,200), (100,100,255)),
+            MenuButton("Quit", (cx, cy+2*spacing), button_size, (0,0,200), (100,100,255)),
         ]
 
         # settings menu buttons (always centered, pure black background)
         self.settings_buttons = [
-            MenuButton("Volume -", (cx-150, cy-2*spacing), (150, 60), (0,0,200), (100,100,255)),
-            MenuButton("Volume +", (cx+150, cy-2*spacing), (150, 60), (0,0,200), (100,100,255)),
-            MenuButton("Scale -", (cx-150, cy-spacing), (150, 60), (0,0,200), (100,100,255)),
-            MenuButton("Scale +", (cx+150, cy-spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Volume -", (cx-150, cy-3*spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Volume +", (cx+150, cy-3*spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Scale -", (cx-150, cy-2*spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Scale +", (cx+150, cy-2*spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Players -", (cx-150, cy-spacing), (150, 60), (0,0,200), (100,100,255)),
+            MenuButton("Players +", (cx+150, cy-spacing), (150, 60), (0,0,200), (100,100,255)),
             MenuButton("Bot -", (cx-150, cy), (150, 60), (0,0,200), (100,100,255)),
             MenuButton("Bot +", (cx+150, cy), (150, 60), (0,0,200), (100,100,255)),
             MenuButton("Back", (cx, cy+spacing), button_size, (0,0,200), (100,100,255)),
@@ -77,8 +82,17 @@ class Menu:
             b.draw(screen, self.font)
         
         if self.settings:
-            bot_text = self.font.render(f"{BOT_TYPES[self.current_bot]}", True, (255,255,255))
-            screen.blit(bot_text, (self.cx - bot_text.get_width()//2, self.cy - 20))
+            # Display settings labels aligned with their button rows
+            volume_text = self.font.render("Volume:", True, (255,255,255))
+            scale_text = self.font.render("Scale:", True, (255,255,255))
+            players_text = self.font.render(f"Players: {self.current_num_players}", True, (255,255,255))
+            bot_text = self.font.render(f"Bot: {BOT_TYPES[self.current_bot]}", True, (255,255,255))
+            
+            # Position texts 35 pixels above their respective button rows
+            screen.blit(volume_text, (self.cx - volume_text.get_width()//2, self.cy - 3*self.spacing - 15))
+            screen.blit(scale_text, (self.cx - scale_text.get_width()//2, self.cy - 2*self.spacing - 15))
+            screen.blit(players_text, (self.cx - players_text.get_width()//2, self.cy - self.spacing - 15))
+            screen.blit(bot_text, (self.cx - bot_text.get_width()//2, self.cy - 15))
 
     def update(self):
         if self.settings:
@@ -115,10 +129,22 @@ class Menu:
                             print("Decrease scale")
                         case "Scale +":
                             print("Increase scale")
+                        case "Players -":
+                            # Only allow changing players in main menu (state == 0)
+                            if self.state == 0:
+                                self.current_num_players = max(MIN_PLAYERS, self.current_num_players - 1)
+                        case "Players +":
+                            # Only allow changing players in main menu (state == 0)
+                            if self.state == 0:
+                                self.current_num_players = min(MAX_PLAYERS, self.current_num_players + 1)
                         case "Bot -":
-                            self.current_bot = (self.current_bot - 1) % len(BOT_TYPES)
+                            # Only allow changing bot in main menu (state == 0)
+                            if self.state == 0:
+                                self.current_bot = (self.current_bot - 1) % len(BOT_TYPES)
                         case "Bot +":
-                            self.current_bot = (self.current_bot + 1) % len(BOT_TYPES)
+                            # Only allow changing bot in main menu (state == 0)
+                            if self.state == 0:
+                                self.current_bot = (self.current_bot + 1) % len(BOT_TYPES)
             return False
 
         for b in self.buttons:
@@ -133,6 +159,10 @@ class Menu:
                         self.settings = True
                         self.selected_option = None
                         return False
+                    case "Main Menu":
+                        self.in_menu = True
+                        self.state = 0
+                        return True
                     case _:
                         self.in_menu = False
                         self.state = 1
